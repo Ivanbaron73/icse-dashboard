@@ -10,8 +10,13 @@ export async function GET() {
   }
 
   try {
+    // Usar app access token si está disponible (más fiable con tokens expirados)
+    const appId = process.env.META_APP_ID
+    const appSecret = process.env.META_APP_SECRET
+    const appToken = appId && appSecret ? `${appId}|${appSecret}` : token
+
     const res = await fetch(
-      `${BASE}/debug_token?input_token=${token}&access_token=${token}`,
+      `${BASE}/debug_token?input_token=${token}&access_token=${appToken}`,
       { cache: 'no-store' }
     )
     const data = await res.json()
