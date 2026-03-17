@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 function NavItem({ href, label, icon }: { href: string; label: string; icon: string }) {
   const pathname = usePathname()
@@ -22,7 +23,24 @@ function NavItem({ href, label, icon }: { href: string; label: string; icon: str
   )
 }
 
+interface TokenStatus {
+  valid: boolean
+  daysLeft: number | null
+  expiresAt: string | null
+}
+
 export default function MainLayout({ children }: { children: React.ReactNode }) {
+  const [tokenStatus, setTokenStatus] = useState<TokenStatus | null>(null)
+
+  useEffect(() => {
+    fetch('/api/meta/token')
+      .then((r) => r.json())
+      .then((d) => setTokenStatus({ valid: d.valid, daysLeft: d.daysLeft, expiresAt: d.expiresAt }))
+      .catch(() => null)
+  }, [])
+
+  const tokenWarning = tokenStatus && (!tokenStatus.valid || (tokenStatus.daysLeft !== null && tokenStatus.daysLeft <= 10))
+
   return (
     <div className="flex min-h-screen bg-gray-950">
       {/* Sidebar */}
@@ -47,15 +65,33 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           <NavItem href="/reportes" label="Reportes PDF" icon="📄" />
           <p className="px-4 py-1 mt-3 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">Sistema</p>
           <NavItem href="/configuracion/workspace" label="Clínicas" icon="🏥" />
+          <NavItem href="/configuracion/token" label="Token Meta" icon="🔑" />
           <NavItem href="/configuracion/facturacion" label="Facturación" icon="💳" />
         </nav>
+
+        {/* Token warning */}
+        {tokenWarning && (
+          <div className="mx-3 mb-3 bg-yellow-900/30 border border-yellow-500/30 rounded-lg p-3">
+            <p className="text-yellow-300 text-xs font-semibold">
+              {tokenStatus?.valid === false ? '⚠ Token Meta expirado' : `⚠ Token expira en ${tokenStatus?.daysLeft} días`}
+            </p>
+            <Link
+              href="/configuracion/token"
+              className="text-yellow-400 hover:text-yellow-300 text-xs underline mt-0.5 block"
+            >
+              Renovar token →
+            </Link>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-gray-800">
           <p className="text-gray-600 text-[10px]">Actualiza 8am · 6pm</p>
           <div className="flex items-center gap-1.5 mt-1">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-green-400 text-xs">Conectado</span>
+            <span className={`w-2 h-2 rounded-full ${tokenStatus?.valid === false ? 'bg-red-500' : 'bg-green-500 animate-pulse'}`} />
+            <span className={`text-xs ${tokenStatus?.valid === false ? 'text-red-400' : 'text-green-400'}`}>
+              {tokenStatus?.valid === false ? 'Token expirado' : 'Conectado'}
+            </span>
           </div>
         </div>
       </aside>

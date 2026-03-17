@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const BASE = 'https://graph.facebook.com/v19.0'
-const TOKEN = process.env.META_ACCESS_TOKEN!
-const ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID! // act_657187014812151
+
+// Leer token dinámicamente en cada request (permite rotación sin restart)
+function getToken(): string {
+  const t = process.env.META_ACCESS_TOKEN
+  if (!t) throw new Error('META_ACCESS_TOKEN no configurado')
+  return t
+}
+
+function getAccountId(): string {
+  const id = process.env.META_AD_ACCOUNT_ID
+  if (!id) throw new Error('META_AD_ACCOUNT_ID no configurado')
+  return id
+}
+
+function isTokenError(status: number, body: string): boolean {
+  // Códigos Meta: 190 = token inválido/expirado, 104 = no autenticado
+  return status === 400 && (body.includes('"code":190') || body.includes('"code":104'))
+}
 
 function extractLeads(actions: Array<{ action_type: string; value: string }> = []): number {
   const leadTypes = [
@@ -17,12 +33,18 @@ function extractLeads(actions: Array<{ action_type: string; value: string }> = [
 }
 
 async function fetchWithToken(url: string) {
+  const token = getToken()
   const separator = url.includes('?') ? '&' : '?'
-  const res = await fetch(`${url}${separator}access_token=${TOKEN}`, {
+  const res = await fetch(`${url}${separator}access_token=${token}`, {
     cache: 'no-store',
   })
   if (!res.ok) {
     const err = await res.text()
+    if (isTokenError(res.status, err)) {
+      const e = new Error('TOKEN_EXPIRED')
+      ;(e as Error & { tokenExpired: boolean }).tokenExpired = true
+      throw e
+    }
     throw new Error(`Meta API error: ${res.status} – ${err}`)
   }
   return res.json()
@@ -37,6 +59,7 @@ export async function GET(req: NextRequest) {
 
   const datePreset =
     days === '7' ? 'last_7d' : days === '30' ? 'last_30d' : 'last_14d'
+  const ACCOUNT_ID = getAccountId()
 
   try {
     if (campaignId) {
@@ -212,6 +235,12 @@ export async function GET(req: NextRequest) {
       campaigns,
     })
   } catch (error) {
+    if (error instanceof Error && (error as Error & { tokenExpired?: boolean }).tokenExpired) {
+      return NextResponse.json(
+        { error: 'TOKEN_EXPIRED', tokenExpired: true },
+        { status: 401 }
+      )
+    }
     const message = error instanceof Error ? error.message : 'Error desconocido'
     return NextResponse.json({ error: message }, { status: 500 })
   }
