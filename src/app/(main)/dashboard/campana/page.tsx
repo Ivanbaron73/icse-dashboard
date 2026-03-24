@@ -171,6 +171,7 @@ export default function CampanaPage() {
   const [campaignsLoading, setCampaignsLoading] = useState(true)
   const [drillLoading, setDrillLoading] = useState(false)
   const [exchangeRate, setExchangeRate] = useState<number>(17.5)
+  const [currency, setCurrency] = useState<string>('USD')
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -196,6 +197,7 @@ export default function CampanaPage() {
       const [data, fxData] = await Promise.all([metaRes.json(), fxRes.json()])
       const list: Campaign[] = data.campaigns ?? []
       setCampaigns(list)
+      setCurrency(data.currency ?? 'USD')
       setExchangeRate(fxData.rate ?? 17.5)
       if (list.length > 0 && !selectedId) {
         setSelectedId(list[0].id)
@@ -247,7 +249,10 @@ export default function CampanaPage() {
   const selectedCampaign = campaigns.find((c) => c.id === selectedId)
   const ads = drillData?.ads ?? []
   const avgCpl = selectedCampaign?.cpl ?? 0
-  const fmt$ = (usd: number) => fmtMXN(usd, exchangeRate)
+  const fmt$ = (amount: number) =>
+    currency === 'MXN'
+      ? `$${amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`
+      : fmtMXN(amount, exchangeRate)
   const fmtN = (n: number, dec = 2) => n.toFixed(dec)
   const fmtPct = (n: number) => `${n.toFixed(2)}%`
 

@@ -26,6 +26,7 @@ interface MetaData {
     avgFrequency: number
   }
   campaigns: Campaign[]
+  currency?: string
   error?: string
 }
 
@@ -149,7 +150,7 @@ export default function DashboardPage() {
   const [ghlLoading, setGhlLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [nextRefresh, setNextRefresh] = useState<string>('')
+  const [, setNextRefresh] = useState<string>('')
 
   // Calcula ms hasta la próxima actualización (8am o 6pm)
   const msUntilNextRefresh = useCallback((): number => {
@@ -210,7 +211,12 @@ export default function DashboardPage() {
 
   const kpis = metaData?.kpis
   const campaigns = metaData?.campaigns ?? []
-  const fmt$ = (usd: number) => fmtMXN(usd, exchangeRate)
+  // Si la cuenta ya está en MXN, no multiplicar por tipo de cambio
+  const currency = metaData?.currency ?? 'USD'
+  const fmt$ = (amount: number) =>
+    currency === 'MXN'
+      ? `$${amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`
+      : fmtMXN(amount, exchangeRate)
 
   return (
     <div className="p-6 lg:p-8 space-y-8">

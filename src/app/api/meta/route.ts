@@ -164,15 +164,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ adsets, ads, bestCreative, worstCreative })
     }
 
-    // ── Overview: all campaigns with insights ──
-    const [campaignsRaw, insightsRaw] = await Promise.all([
+    // ── Overview: all campaigns with insights + account currency ──
+    const [campaignsRaw, insightsRaw, accountInfo] = await Promise.all([
       fetchWithToken(
         `${BASE}/${ACCOUNT_ID}/campaigns?fields=id,name,status,objective&effective_status=["ACTIVE"]&limit=500`
       ),
       fetchWithToken(
         `${BASE}/${ACCOUNT_ID}/insights?level=campaign&fields=campaign_id,campaign_name,spend,clicks,impressions,reach,frequency,ctr,cpc,actions&date_preset=${datePreset}&limit=500`
       ),
+      fetchWithToken(`${BASE}/${ACCOUNT_ID}?fields=currency`),
     ])
+    const currency: string = accountInfo.currency ?? 'USD'
 
     const insightsMap = new Map<string, (typeof insightsRaw.data)[0]>()
     for (const row of insightsRaw.data ?? []) {
@@ -233,6 +235,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       kpis: { totalSpend, totalLeads, avgCpl, avgCtr, avgFrequency },
       campaigns,
+      currency,
     })
   } catch (error) {
     if (error instanceof Error && (error as Error & { tokenExpired?: boolean }).tokenExpired) {
