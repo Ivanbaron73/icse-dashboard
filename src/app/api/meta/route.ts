@@ -165,10 +165,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Overview: all campaigns with insights + account currency ──
-    const [campaignsRaw, insightsRaw, accountInfo] = await Promise.all([
-      fetchWithToken(
-        `${BASE}/${ACCOUNT_ID}/campaigns?fields=id,name,status,objective&limit=500`
-      ),
+    const [insightsRaw, accountInfo] = await Promise.all([
       fetchWithToken(
         `${BASE}/${ACCOUNT_ID}/insights?level=campaign&fields=campaign_id,campaign_name,spend,clicks,impressions,reach,frequency,ctr,cpc,actions&date_preset=${datePreset}&limit=500`
       ),
@@ -176,28 +173,34 @@ export async function GET(req: NextRequest) {
     ])
     const currency: string = accountInfo.currency ?? 'USD'
 
-    const insightsMap = new Map<string, (typeof insightsRaw.data)[0]>()
-    for (const row of insightsRaw.data ?? []) {
-      insightsMap.set(row.campaign_id, row)
-    }
-
-    const campaigns = (campaignsRaw.data ?? []).map(
-      (c: { id: string; name: string; status: string; objective: string }) => {
-        const ins = insightsMap.get(c.id)
-        const leads = extractLeads(ins?.actions)
-        const spend = Number(ins?.spend ?? 0)
+    // Build campaign list directly from insights (has campaign_id + campaign_name + all metrics)
+    const campaigns = (insightsRaw.data ?? []).map(
+      (row: {
+        campaign_id: string
+        campaign_name: string
+        spend: string
+        clicks: string
+        impressions: string
+        reach: string
+        frequency: string
+        ctr: string
+        cpc: string
+        actions?: Array<{ action_type: string; value: string }>
+      }) => {
+        const leads = extractLeads(row.actions)
+        const spend = Number(row.spend ?? 0)
         return {
-          id: c.id,
-          name: c.name,
-          status: c.status,
-          objective: c.objective,
+          id: row.campaign_id,
+          name: row.campaign_name,
+          status: 'ACTIVE',
+          objective: '',
           spend,
-          clicks: Number(ins?.clicks ?? 0),
-          impressions: Number(ins?.impressions ?? 0),
-          reach: Number(ins?.reach ?? 0),
-          frequency: Number(ins?.frequency ?? 0),
-          ctr: Number(ins?.ctr ?? 0),
-          cpc: Number(ins?.cpc ?? 0),
+          clicks: Number(row.clicks ?? 0),
+          impressions: Number(row.impressions ?? 0),
+          reach: Number(row.reach ?? 0),
+          frequency: Number(row.frequency ?? 0),
+          ctr: Number(row.ctr ?? 0),
+          cpc: Number(row.cpc ?? 0),
           leads,
           cpl: leads > 0 ? spend / leads : 0,
         }
